@@ -40,7 +40,9 @@ import models
 
 
 def train(args, device, train_loader, traintest_loader, test_loader):
-    torch.manual_seed(42)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
     
     for trial in range(1,args.trials+1):
         
@@ -70,9 +72,7 @@ def train(args, device, train_loader, traintest_loader, test_loader):
                             LIF_tpye=args.LIF_type,
                             Output_type=args.Output_type)
 
-        # Use CUDA for GPU-based computation if enabled
-        if args.cuda:
-            model.cuda()
+        model.to(device)
         
         # Initial monitoring
         if (args.trials > 1):
@@ -88,7 +88,7 @@ def train(args, device, train_loader, traintest_loader, test_loader):
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
         elif args.optimizer == 'NAG':
             optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
-        elif args.optimizer == 'RMSprop':
+        elif args.optimizer in ('RMSProp', 'RMSprop'):
             optimizer = optim.RMSprop(model.parameters(), lr=args.lr)
         else:
             raise NameError("=== ERROR: optimizer " + str(args.optimizer) + " not supported")
@@ -105,6 +105,7 @@ def train(args, device, train_loader, traintest_loader, test_loader):
         
         # Training and performance monitoring
         print("\n=== Starting model training with %d epochs:\n" % (args.epochs,))        
+        output = None
         for epoch in range(1, args.epochs + 1):
             print("\t Epoch "+str(epoch)+"...")
             #Training: do_epoch是自定义的函数
@@ -113,7 +114,8 @@ def train(args, device, train_loader, traintest_loader, test_loader):
             if not args.skip_test:
                 #do_epoch(args, False, model, device, traintest_loader, optimizer, loss, 'train') # Uncomment to display the final accuracy on the training set after the epoch (fixed weights)
                 output = do_epoch(args, False, model, device, test_loader, optimizer, loss, 'test')
-        torch.save(model.state_dict(), 'model.pth')        
+        if args.checkpoint_path is not None:
+            torch.save(model.state_dict(), args.checkpoint_path)
         return (args, model, device, train_loader, test_loader, optimizer, loss, output)
 
 

@@ -76,3 +76,29 @@ Consequences:
   completion on a tiny CPU speech run.
 - `eprop` still needs cleanup before it is reliable. Detailed findings are
   recorded in `docs/EPROP_REVIEW.md`.
+
+## D-0004: Use `uv` And `pyproject.toml` For The Maintained Python Environment
+
+Date: 2026-05-11
+Status: accepted
+
+Decision:
+
+Use a repository-level `pyproject.toml` and `uv` environment for maintained
+`eprop` runs. Keep the old `snn_eprop` conda environment only as a historical
+reference until the uv environment is verified on all target commands.
+
+Rationale:
+
+The local conda environments currently report PyTorch MPS as unavailable on an
+Apple M1 Max system where Metal hardware is present. A project-level uv
+environment gives cleaner Python version selection, dependency resolution, and
+lockfile-based reproducibility.
+
+Consequences:
+
+- Supported commands should prefer `uv run ...` after `uv sync`.
+- The project Python is constrained to Python 3.10-3.12 for PyTorch/macOS
+  compatibility.
+- Apple GPU use must still be verified with `torch.backends.mps.is_available()`
+  before treating `--device mps` results as supported.

@@ -15,7 +15,8 @@ git init
 git status --short
 ```
 
-The initial inspection did not detect a top-level `.git` directory.
+A top-level git repository is present as of 2026-05-11. Always check
+`git status --short` before edits or experiment runs.
 
 ## Environment Discovery
 
@@ -26,25 +27,66 @@ python --version
 python -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"
 ```
 
-## Planned Smoke Test: eprop Speech
+Preferred maintained environment:
+
+```bash
+uv --cache-dir /private/tmp/uv-cache sync
+uv --cache-dir /private/tmp/uv-cache run python --version
+uv --cache-dir /private/tmp/uv-cache run python -c "import torch; print(torch.__version__); print(torch.backends.mps.is_built()); print(torch.backends.mps.is_available())"
+```
+
+Legacy local conda environment on this workstation:
+
+```bash
+/opt/anaconda3/envs/snn_eprop/bin/python --version
+/opt/anaconda3/envs/snn_eprop/bin/python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.backends.mps.is_built()); print(torch.backends.mps.is_available())"
+```
+
+Observed on 2026-05-11:
+
+- `uv`: `/Users/lixiangting/.local/bin/uv`, version `0.8.9`
+- uv environment Python: `.venv/bin/python3`, Python 3.12.12.
+- uv environment PyTorch version: 2.11.0.
+- uv environment MPS status: built and available; `device='mps'` tensor
+  creation succeeds.
+- `snn_eprop` Python: `/opt/anaconda3/envs/snn_eprop/bin/python`
+- `snn_eprop` Python version: 3.8.20
+- `snn_eprop` PyTorch version: 2.4.1
+- CUDA unavailable on this Mac.
+- Apple M1 Max Metal hardware is present.
+- Legacy conda environments currently report MPS as unavailable; use the uv
+  environment for Apple GPU runs.
+- In the Codex shell, `conda run -n snn_eprop ...` can fail from `eprop/` and
+  fall back to `/opt/local/bin/python`; use the absolute environment Python or
+  an already activated shell.
+
+## Smoke Test: eprop Speech
 
 Purpose:
 
-Run a small speech experiment after the data path is made explicit.
+Run a small speech experiment with explicit seed and data path.
 
-Planned command shape:
+Legacy conda CPU command:
 
 ```bash
 cd eprop
-python model/main.py --cpu --epochs 1 --train-len 2 --test-len 2 --batch-size 1 --test-batch-size 1 --n-rec 4
+/opt/anaconda3/envs/snn_eprop/bin/python model/main.py --device cpu --epochs 1 --train-len 2 --test-len 2 --batch-size 1 --test-batch-size 1 --n-rec 4 --seed 123 --data-dir ./data
 ```
 
-Known issue:
+Preferred uv MPS command from the repository root, after `uv sync`:
 
-This command currently starts training but crashes at the final undefined
-`synapse_nob`/`neuron_nob` print in `eprop/model/main.py`. The current
-speech loader also hardcodes `./data/data.npy` and `./data/label.npy`; these
-should become CLI parameters before experiments are considered reproducible.
+```bash
+uv --cache-dir /private/tmp/uv-cache run python eprop/model/main.py --device mps --epochs 1 --train-len 2 --test-len 2 --batch-size 1 --test-batch-size 1 --n-rec 4 --seed 123 --data-dir eprop/data
+```
+
+Expected behavior:
+
+- Uses deterministic train/test pools from `--seed`.
+- Uses `./data/data.npy` and `./data/label.npy` unless `--data-file` and
+  `--label-file` are supplied.
+- Does not save a checkpoint unless `--checkpoint-path` is supplied.
+- Repeated runs with the same command should produce the same selected samples
+  and losses.
 
 ## Run Artifact Convention
 

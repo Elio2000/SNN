@@ -54,17 +54,35 @@ import sys
 import time
 
 
+def str2bool(value):
+    if isinstance(value, bool):
+        return value
+    value = value.lower()
+    if value in ("yes", "true", "t", "1", "y"):
+        return True
+    if value in ("no", "false", "f", "0", "n"):
+        return False
+    raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Spiking RNN Pytorch training')
     # General
     parser.add_argument('--cpu', action='store_true', default=False, help='Disable CUDA training and run training on CPU')
     # parser.add_argument('--cpu', action='store_true', default=True, help='Disable CUDA training and run training on CPU')
     # parser.add_argument('--dataset', type=str, choices = ['cue_accumulation'], default='cue_accumulation', help='Choice of the dataset')
-    parser.add_argument('--dataset', type=str, choices = ['cue_accumulation, speech'], default='speech', help='Choice of the dataset')
-    parser.add_argument('--shuffle', type=bool, default=True, help='Enables shuffling sample order in datasets after each epoch')
+    parser.add_argument('--dataset', type=str, choices = ['speech'], default='speech', help='Choice of the dataset')
+    parser.add_argument('--device', type=str, choices=['auto', 'cpu', 'cuda', 'mps'], default='auto', help='Computation device')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for dataset sampling and model initialization')
+    parser.add_argument('--data-dir', type=str, default='./data', help='Directory containing speech data.npy and label.npy')
+    parser.add_argument('--data-file', type=str, default=None, help='Path to speech feature .npy file. Overrides --data-dir/data.npy')
+    parser.add_argument('--label-file', type=str, default=None, help='Path to speech label .npy file. Overrides --data-dir/label.npy')
+    parser.add_argument('--test-split', type=float, default=0.2, help='Fraction of logical speech samples reserved for test')
+    parser.add_argument('--checkpoint-path', type=str, default=None, help='Optional path for saving the trained model state dict')
+    parser.add_argument('--shuffle', type=str2bool, nargs='?', const=True, default=True, help='Enables shuffling sample order in datasets after each epoch')
     parser.add_argument('--trials', type=int, default=1, help='Nomber of trial experiments to do (i.e. repetitions with different initializations)')
     parser.add_argument('--epochs', type=int, default=70, help='Number of epochs to train')
-    parser.add_argument('--optimizer', type=str, choices = ['SGD', 'NAG', 'Adam', 'RMSProp'], default='Adam', help='Choice of the optimizer')
+    parser.add_argument('--optimizer', type=str, choices = ['SGD', 'NAG', 'Adam', 'RMSProp', 'RMSprop'], default='Adam', help='Choice of the optimizer')
     parser.add_argument('--loss', type=str, choices = ['MSE', 'BCE', 'CE'], default='BCE', help='Choice of the loss function (only for performance monitoring purposes, does not influence learning)')
     parser.add_argument('--lr', type=float, default=1e-4, help='Initial learning rate')
     parser.add_argument('--lr-layer-norm', type=float, nargs='+', default=(0.05,0.05,1.0), help='Per-layer modulation factor of the learning rate')
@@ -72,8 +90,8 @@ def main():
     parser.add_argument('--test-batch-size', type=int, default=5, help='Batch size for testing (limited by the available GPU memory)')
     parser.add_argument('--train-len', type=int, default=200, help='Number of training set samples')
     parser.add_argument('--test-len', type=int, default=200, help='Number of test set samples')
-    parser.add_argument('--visualize', type=bool, default=True, help='Enable network visualization')
-    parser.add_argument('--visualize-light', type=bool, default=True, help='Enable light mode in network visualization, plots traces only for a single neuron')
+    parser.add_argument('--visualize', type=str2bool, nargs='?', const=True, default=False, help='Enable network visualization')
+    parser.add_argument('--visualize-light', type=str2bool, nargs='?', const=True, default=True, help='Enable light mode in network visualization, plots traces only for a single neuron')
     # Network model parameters
     parser.add_argument('--n-rec', type=int, default=100, help='Number of recurrent units')
     parser.add_argument('--model', type=str, choices = ['LIF'], default='LIF', help='Neuron model in the recurrent layer. Support for the ALIF neuron model has been removed.')
@@ -85,21 +103,18 @@ def main():
     parser.add_argument('--w-init-gain', type=float, nargs='+', default=(0.5,0.1,0.5), help='Gain parameter for the He Normal initialization of the input, recurrent and output layer weights')
     parser.add_argument('--SynapseNoB', type=int, default=4, help='Number of bits for weight')
     parser.add_argument('--NeuronNoB', type=int, default=7, help='Number of bits for weight')
-    parser.add_argument('--LIF_type', type=bool, default=True, help='LIF_tpye = True represent LIF discribe in paper, LIF_type = False represent LIF in the circuit')
-    parser.add_argument('--Output_type', type=bool, default=True, help='Output_tpye = True represent output vo as discribe in paper, Output_tpye = False represent output zo as in the circuit')
+    parser.add_argument('--LIF_type', type=str2bool, nargs='?', const=True, default=True, help='True uses paper-style LIF reset, False uses circuit-style reset')
+    parser.add_argument('--Output_type', type=str2bool, nargs='?', const=True, default=True, help='True uses output membrane voltage, False enables output spike state')
     parser.add_argument('--threshold_out', type=float, default=0.6, help='Firing threshold in the output layer')
     parser.add_argument('--v_reset', type=float, default=0, help='Reset potential in the recurrent layer')
     parser.add_argument('--vo_reset', type=float, default=0, help='Reset potential in the output layer')
-    
+
     args = parser.parse_args()
-    
-    args.LIF_type = True
-    args.Output_type = True
 
     (device, train_loader, traintest_loader, test_loader) = setup.setup(args)    
     # #(args_out, model, device_out, train_loader_out, test_loader_out, optimizer, loss, output) = train.train(args, device, train_loader, traintest_loader, test_loader)
-    (args_out, model, device_out, train_loader_out, test_loader_out, optimizer, loss, output) = train.train(args, device, train_loader, traintest_loader, train_loader)
-    print(f"Running with SynapseNoB = {synapse_nob}, NeuronNoB = {neuron_nob}")
+    (args_out, model, device_out, train_loader_out, test_loader_out, optimizer, loss, output) = train.train(args, device, train_loader, traintest_loader, test_loader)
+    print(f"Running with SynapseNoB = {args.SynapseNoB}, NeuronNoB = {args.NeuronNoB}")
     print(time.localtime(time.time()))
     return args
 
@@ -117,5 +132,3 @@ if __name__ == '__main__':
     args = main()
     # sys.stdout = original_stdout
     # file.close
-    
-    
