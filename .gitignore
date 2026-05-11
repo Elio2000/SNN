@@ -30,6 +30,12 @@ reports/runs/*/
 *.npy
 *.npz
 *.wav
+*.flac
+*.mp3
+*.m4a
+*.aac
+*.ogg
+*.opus
 *.zip
 
 # Notebook checkpoints
