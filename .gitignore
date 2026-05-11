@@ -1,0 +1,36 @@
+# OS/editor noise
+.DS_Store
+**/.DS_Store
+
+# Local agent/tool settings
+.claude/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local environments
+.venv/
+venv/
+env/
+.env
+
+# Experiment outputs and logs
+reports/runs/*/
+*.log
+
+# Model checkpoints and generated binaries
+*.pth
+*.pt
+*.o
+*.d
+*.so
+
+# Large/generated datasets. Keep source metadata in docs instead.
+*.npy
+*.npz
+*.wav
+*.zip
+
+# Notebook checkpoints
+.ipynb_checkpoints/
